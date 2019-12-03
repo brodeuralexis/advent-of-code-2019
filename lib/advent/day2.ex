@@ -11,14 +11,49 @@ defmodule Advent.Day2 do
   @doc """
   Get result for the 2nd day of the advent of code 2019.
   """
-  @spec day2() :: integer
+  @spec day2() :: nil
   def day2 do
+    [
+      puzzle_input: day2_part1(),
+      missing_noun_and_verb: day2_part2()
+    ]
+  end
+
+  @doc """
+  The first part of day 2's challenge.
+  """
+  @spec day2_part1() :: integer
+  def day2_part1 do
     @puzzle_input
     |> decode_intcode()
     |> List.replace_at(1, 12)
     |> List.replace_at(2, 2)
     |> run()
     |> Enum.at(0)
+  end
+
+  @doc """
+  The second part of day 2's challenge.
+  """
+  @spec day2_part2() :: integer
+  def day2_part2 do
+    values = for noun <- 0..99, verb <- 0..99 do
+      [noun: noun, verb: verb]
+    end
+
+    [noun: noun, verb: verb] = Enum.find(values, fn [noun: noun, verb: verb] ->
+      value =
+        @puzzle_input
+        |> decode_intcode()
+        |> List.replace_at(1, noun)
+        |> List.replace_at(2, verb)
+        |> run()
+        |> Enum.at(0)
+
+      value == 19690720
+    end)
+
+    [result: 100 * noun + verb, noun: noun, verb: verb]
   end
 
   @doc """
@@ -40,25 +75,51 @@ defmodule Advent.Day2 do
   end
 
   @spec run(intcode, intcode) :: intcode
-  defp run(memory, offset) do
-    case Enum.slice(memory, offset..(offset + 3)) do
-      [99] ++ _ ->
+  defp run(memory, instruction_pointer) do
+    memory
+    |> Enum.slice(instruction_pointer..-1)
+    |> interpret(memory)
+    |> case do
+      :halt ->
         memory
-      [1, left, right, result] ->
-        left = Enum.at(memory, left)
-        right = Enum.at(memory, right)
-        memory = List.replace_at(memory, result, left + right)
-
-        run(memory, offset + 4)
-      [2, left, right, result] ->
-        left = Enum.at(memory, left)
-        right = Enum.at(memory, right)
-        memory = List.replace_at(memory, result, left * right)
-
-        run(memory, offset + 4)
-      intcode_with_args ->
-        raise "invalid intcode with arguments: #{inspect(intcode_with_args)}"
+      {:continue, memory: memory, size: size} ->
+        run(memory, instruction_pointer + size)
     end
+  end
+
+  @doc """
+  Interprets a slice of memory as the given program and returns new information
+  for the interpreter.
+  """
+  @spec interpret(intcode, intcode) :: :halt | {:continue, memory: intcode, size: integer}
+  def interpret(program, memory)
+
+  def interpret([99] ++ _, _memory) do
+    :halt
+  end
+
+  def interpret([1, left, right, result] ++ _, memory) do
+    left = Enum.at(memory, left)
+    right = Enum.at(memory, right)
+
+    memory = List.replace_at(memory, result, left + right)
+
+    {:continue, memory: memory, size: 4}
+  end
+
+  def interpret([2, left, right, result] ++ _, memory) do
+    left = Enum.at(memory, left)
+    right = Enum.at(memory, right)
+
+    memory = List.replace_at(memory, result, left * right)
+
+    {:continue, memory: memory, size: 4}
+  end
+
+  def interpret([intcode] ++ rest, memory) do
+    position = Enum.count(memory) - Enum.count(rest) - 1
+
+    raise "invalid intcode #{intcode} at #{position}"
   end
 
   @doc """
