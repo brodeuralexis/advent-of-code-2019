@@ -3,6 +3,8 @@ defmodule Advent.Day2 do
   Day 2: 1202 Program Alarm
   """
 
+  alias Advent.Day2.Instruction
+
   @type raw :: String.t
   @type intcode :: List.t(integer)
 
@@ -77,49 +79,17 @@ defmodule Advent.Day2 do
   @spec run(intcode, intcode) :: intcode
   defp run(memory, instruction_pointer) do
     memory
-    |> Enum.slice(instruction_pointer..-1)
-    |> interpret(memory)
+    |> Enum.fetch!(instruction_pointer)
+    |> Instruction.decode()
+    |> Instruction.run(Enum.slice(memory, (instruction_pointer+1)..-1), memory)
     |> case do
       :halt ->
         memory
       {:continue, memory: memory, size: size} ->
         run(memory, instruction_pointer + size)
+      {:jump, memory: memory, to: instruction_pointer} ->
+        run(memory, instruction_pointer)
     end
-  end
-
-  @doc """
-  Interprets a slice of memory as the given program and returns new information
-  for the interpreter.
-  """
-  @spec interpret(intcode, intcode) :: :halt | {:continue, memory: intcode, size: integer}
-  def interpret(program, memory)
-
-  def interpret([99] ++ _, _memory) do
-    :halt
-  end
-
-  def interpret([1, left, right, result] ++ _, memory) do
-    left = Enum.at(memory, left)
-    right = Enum.at(memory, right)
-
-    memory = List.replace_at(memory, result, left + right)
-
-    {:continue, memory: memory, size: 4}
-  end
-
-  def interpret([2, left, right, result] ++ _, memory) do
-    left = Enum.at(memory, left)
-    right = Enum.at(memory, right)
-
-    memory = List.replace_at(memory, result, left * right)
-
-    {:continue, memory: memory, size: 4}
-  end
-
-  def interpret([intcode] ++ rest, memory) do
-    position = Enum.count(memory) - Enum.count(rest) - 1
-
-    raise "invalid intcode #{intcode} at #{position}"
   end
 
   @doc """
