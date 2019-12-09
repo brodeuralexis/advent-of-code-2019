@@ -48,8 +48,10 @@ defmodule Advent.Day8.SpaceImageFormat do
   ## Example
 
       ```iex
-      iex> decode("111222000111", width: 3, height: 2)
+      iex> parse("111222000111", width: 3, height: 2)
       %#{__MODULE__}{
+        width: 3,
+        height: 2,
         layers: [
           [[1, 1, 1], [2, 2, 2]],
           [[0, 0, 0], [1, 1, 1]]
