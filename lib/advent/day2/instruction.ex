@@ -47,7 +47,7 @@ defmodule Advent.Day2.Instruction do
     {:continue, memory: memory, size: 4}
   end
 
-  def run(%__MODULE__{code: 3} = instruction, [at] ++ _, memory) do
+  def run(%__MODULE__{code: 3} = _instruction, [at] ++ _, memory) do
     {:input, at: at, memory: memory, size: 2}
   end
 
