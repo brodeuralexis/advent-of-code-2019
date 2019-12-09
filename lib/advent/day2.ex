@@ -3,10 +3,8 @@ defmodule Advent.Day2 do
   Day 2: 1202 Program Alarm
   """
 
-  alias Advent.Day2.Instruction
-
-  @type raw :: String.t
-  @type intcode :: List.t(integer)
+  alias Advent.Day2.Interpreter
+  alias Advent.Day2.Interpreter.Decoder
 
   @puzzle_input File.read!("#{__DIR__}/day2/puzzle_input.txt")
 
@@ -27,10 +25,10 @@ defmodule Advent.Day2 do
   @spec day2_part1() :: integer
   def day2_part1 do
     @puzzle_input
-    |> decode_intcode()
+    |> Decoder.decode_intcode()
     |> List.replace_at(1, 12)
     |> List.replace_at(2, 2)
-    |> run()
+    |> Interpreter.run()
     |> Enum.at(0)
   end
 
@@ -46,81 +44,15 @@ defmodule Advent.Day2 do
     [noun: noun, verb: verb] = Enum.find(values, fn [noun: noun, verb: verb] ->
       value =
         @puzzle_input
-        |> decode_intcode()
+        |> Decoder.decode_intcode()
         |> List.replace_at(1, noun)
         |> List.replace_at(2, verb)
-        |> run()
+        |> Interpreter.run()
         |> Enum.at(0)
 
       value == 19690720
     end)
 
     [result: 100 * noun + verb, noun: noun, verb: verb]
-  end
-
-  @doc """
-  Decodes and runs the given string in the intcode interpreter.
-  """
-  @spec run(raw) :: intcode
-  def run(string) when is_binary(string) do
-    string
-    |> decode_intcode()
-    |> run()
-  end
-
-  @doc """
-  Runs the given intcode in the interpreter.
-  """
-  @spec run(intcode) :: intcode
-  def run(memory) when is_list(memory) do
-    run(memory, 0)
-  end
-
-  @spec run(intcode, intcode) :: intcode
-  defp run(memory, instruction_pointer) do
-    memory
-    |> Enum.fetch!(instruction_pointer)
-    |> Instruction.decode()
-    |> Instruction.run(Enum.slice(memory, (instruction_pointer+1)..-1), memory)
-    |> case do
-      :halt ->
-        memory
-      {:continue, memory: memory, size: size} ->
-        run(memory, instruction_pointer + size)
-      {:jump, memory: memory, to: instruction_pointer} ->
-        run(memory, instruction_pointer)
-    end
-  end
-
-  @doc """
-  Decodes the given Intcode program into a list of integers.
-
-  ## Examples
-      ```iex
-      iex> decode_intcode("1,9,10,3,2,3,11,0,99,30,40,50")
-      [1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50]
-      ```
-
-      ```iex
-      iex> decode_intcode("1,1,1,4,99,5,6,0,99")
-      [1, 1, 1, 4, 99, 5, 6, 0, 99]
-      ```
-  """
-  @spec decode_intcode(raw) :: intcode
-  def decode_intcode(binary) do
-    binary
-    |> String.split(",")
-    |> Enum.map(&String.trim/1)
-    |> Enum.with_index()
-    |> Enum.map(&decode_intcode_integer/1)
-  end
-
-  defp decode_intcode_integer({binary, index}) do
-    case Integer.parse(binary) do
-      {integer, ""} ->
-        integer
-      _ ->
-        raise "invalid intcode at #{index}"
-    end
   end
 end

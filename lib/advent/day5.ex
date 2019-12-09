@@ -5,11 +5,11 @@ defmodule Advent.Day5 do
 
   @puzzle_input File.read!("#{__DIR__}/day5/puzzle_input.txt")
 
-  alias Advent.Day2
+  alias Advent.Day2.Interpreter
 
   def test do
     @puzzle_input
-    |> Day2.decode_intcode()
-    |> Day2.run()
+    |> Interpreter.new()
+    |> Interpreter.run()
   end
 end

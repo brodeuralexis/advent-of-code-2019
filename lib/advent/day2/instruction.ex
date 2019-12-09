@@ -47,20 +47,14 @@ defmodule Advent.Day2.Instruction do
     {:continue, memory: memory, size: 4}
   end
 
-  def run(%__MODULE__{code: 3} = instruction, [input] ++ _, memory) do
-    value = input()
-
-    memory = set_parameter(instruction, :input, input, value, memory)
-
-    {:continue, memory: memory, size: 2}
+  def run(%__MODULE__{code: 3} = instruction, [at] ++ _, memory) do
+    {:input, at: at, memory: memory, size: 2}
   end
 
   def run(%__MODULE__{code: 4} = instruction, [output] ++ _, memory) do
     value = get_parameter(instruction, :output, output, memory)
 
-    output(value)
-
-    {:continue, memory: memory, size: 2}
+    {:output, value: value, memory: memory, size: 2}
   end
 
   def run(%__MODULE__{code: 5} = instruction, [condition, to] ++ _, memory) do
