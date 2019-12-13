@@ -4,7 +4,7 @@ defmodule Advent.Day2.Interpreter do
   executed.
   """
 
-  defstruct [:memory, :instruction_pointer, :io, :break]
+  defstruct [:memory, :instruction_pointer, :relative_base, :io, :break]
 
   alias Advent.Day2.Instruction
 
@@ -22,6 +22,7 @@ defmodule Advent.Day2.Interpreter do
   @opaque t :: %Interpreter{
     memory: intcode,
     instruction_pointer: integer,
+    relative_base: integer,
     io: {atom, term},
     break: :input | :output | nil | [:input | :output],
   }
@@ -30,12 +31,13 @@ defmodule Advent.Day2.Interpreter do
   Returns an new intcode interpreter from the given intcode program memory.
   """
   @spec new(intcode | String.t, atom) :: t
-  def new(memory, io \\ Interpreter.IO, context \\ nil)
+  def new(memory, io \\ Interpreter.StandardIO, context \\ nil)
 
   def new(memory, io, context) when is_list(memory) do
     %Interpreter{
       memory: memory,
       instruction_pointer: 0,
+      relative_base: 0,
       io: {io, context},
       break: nil,
     }
@@ -66,11 +68,11 @@ defmodule Advent.Day2.Interpreter do
   program's execution.
   """
   @spec run(t) :: intcode
-  def run(%__MODULE__{memory: memory, instruction_pointer: instruction_pointer, break: break} = interpreter) do
+  def run(%__MODULE__{memory: memory, instruction_pointer: instruction_pointer, relative_base: relative_base, break: break} = interpreter) do
     memory
     |> Enum.fetch!(instruction_pointer)
     |> Instruction.decode()
-    |> Instruction.run(Enum.slice(memory, (instruction_pointer+1)..-1), memory)
+    |> Instruction.run(Enum.slice(memory, (instruction_pointer+1)..-1), memory, relative_base)
     |> case do
       :halt ->
         interpreter = %{interpreter|memory: memory, instruction_pointer: instruction_pointer}
@@ -78,6 +80,10 @@ defmodule Advent.Day2.Interpreter do
         {:halt, interpreter}
       {:continue, memory: memory, size: size} ->
         interpreter = %{interpreter|memory: memory, instruction_pointer: instruction_pointer + size}
+
+        run(interpreter)
+      {:continue, memory: memory, size: size, relative_base_offset: relative_base_offset} ->
+        interpreter = %{interpreter|memory: memory, instruction_pointer: instruction_pointer + size, relative_base: relative_base + relative_base_offset}
 
         run(interpreter)
       {:jump, memory: memory, to: instruction_pointer} ->

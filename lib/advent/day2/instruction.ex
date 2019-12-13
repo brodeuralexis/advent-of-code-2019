@@ -2,13 +2,16 @@ defmodule Advent.Day2.Instruction do
   defstruct [:code, :parameters]
 
   @type intcode :: [integer]
-  @type parameter_mode :: :positional | :immediate
+  @type parameter_mode :: :positional | :immediate | :relative
 
   @type t :: any
 
   @parameter_size 10
   @code_size 100
   @default_parameter_mode :positional
+
+  require Advent.Day2.Instruction.Debug
+  import Advent.Day2.Instruction.Debug, only: [debug: 1]
 
   @doc """
   Decodes the given integer into an instruction.
@@ -22,44 +25,82 @@ defmodule Advent.Day2.Instruction do
   Steps a single instruction from a slice of memory as the given program and
   returns new information for the interpreter.
   """
-  @spec run(t, intcode, intcode) :: :halt | {:continue, memory: intcode, size: integer}
-  def run(instruction, program, memory)
+  @spec run(t, intcode, intcode, integer) :: :halt | {:continue, memory: intcode, size: integer}
+  def run(instruction, program, memory, offset)
 
-  def run(%__MODULE__{code: 99}, _program, _memory) do
+  def run(%__MODULE__{code: 99} = instruction, _program, _memory, _offset) do
+    debug do
+      nil
+    end
+
     :halt
   end
 
-  def run(%__MODULE__{code: 1} = instruction, [left, right, result] ++ _, memory) do
-    left_value = get_parameter(instruction, :left, left, memory)
-    right_value = get_parameter(instruction, :right, right, memory)
+  def run(%__MODULE__{code: 1} = instruction, [left, right, result] ++ _, memory, offset) do
+    left_value = get_parameter(instruction, :left, left, memory, offset)
+    right_value = get_parameter(instruction, :right, right, memory, offset)
 
-    memory = set_parameter(instruction, :result, result, left_value + right_value, memory)
+    memory = set_parameter(instruction, :result, result, left_value + right_value, memory, offset)
 
-    {:continue, memory: memory, size: 4}
-  end
-
-  def run(%__MODULE__{code: 2} = instruction, [left, right, result] ++ _, memory) do
-    left_value = get_parameter(instruction, :left, left, memory)
-    right_value = get_parameter(instruction, :right, right, memory)
-
-    memory = set_parameter(instruction, :result, result, left_value * right_value, memory)
+    debug do
+      parameter :left
+      parameter :right
+      result left_value + right_value
+    end
 
     {:continue, memory: memory, size: 4}
   end
 
-  def run(%__MODULE__{code: 3} = _instruction, [at] ++ _, memory) do
-    {:input, at: at, memory: memory, size: 2}
+  def run(%__MODULE__{code: 2} = instruction, [left, right, result] ++ _, memory, offset) do
+    left_value = get_parameter(instruction, :left, left, memory, offset)
+    right_value = get_parameter(instruction, :right, right, memory, offset)
+
+    memory = set_parameter(instruction, :result, result, left_value * right_value, memory, offset)
+
+    debug do
+      parameter :left
+      parameter :right
+      result left_value + right_value
+    end
+
+    {:continue, memory: memory, size: 4}
   end
 
-  def run(%__MODULE__{code: 4} = instruction, [output] ++ _, memory) do
-    value = get_parameter(instruction, :output, output, memory)
+  def run(%__MODULE__{code: 3} = instruction, [at] ++ _, memory, offset) do
+    at_value = case get_parameter_mode(instruction, :at) do
+      :immediate ->
+        raise "cannot use relative addressing with an input instruction"
+      :relative ->
+        offset + at
+      :positional ->
+        at
+    end
 
-    {:output, value: value, memory: memory, size: 2}
+    debug do
+      parameter :at
+    end
+
+    {:input, at: at_value, memory: memory, size: 2}
   end
 
-  def run(%__MODULE__{code: 5} = instruction, [condition, to] ++ _, memory) do
-    condition_value = get_parameter(instruction, :condition, condition, memory)
-    to_value = get_parameter(instruction, :to, to, memory)
+  def run(%__MODULE__{code: 4} = instruction, [output] ++ _, memory, offset) do
+    output_value = get_parameter(instruction, :output, output, memory, offset)
+
+    debug do
+      parameter :output
+    end
+
+    {:output, value: output_value, memory: memory, size: 2}
+  end
+
+  def run(%__MODULE__{code: 5} = instruction, [condition, to] ++ _, memory, offset) do
+    condition_value = get_parameter(instruction, :condition, condition, memory, offset)
+    to_value = get_parameter(instruction, :to, to, memory, offset)
+
+    debug do
+      parameter :condition
+      parameter :to
+    end
 
     if condition_value != 0 do
       {:jump, memory: memory, to: to_value}
@@ -68,9 +109,14 @@ defmodule Advent.Day2.Instruction do
     end
   end
 
-  def run(%__MODULE__{code: 6} = instruction, [condition, to] ++ _, memory) do
-    condition_value = get_parameter(instruction, :condition, condition, memory)
-    to_value = get_parameter(instruction, :to, to, memory)
+  def run(%__MODULE__{code: 6} = instruction, [condition, to] ++ _, memory, offset) do
+    condition_value = get_parameter(instruction, :condition, condition, memory, offset)
+    to_value = get_parameter(instruction, :to, to, memory, offset)
+
+    debug do
+      parameter :condition
+      parameter :to
+    end
 
     if condition_value == 0 do
       {:jump, memory: memory, to: to_value}
@@ -79,26 +125,52 @@ defmodule Advent.Day2.Instruction do
     end
   end
 
-  def run(%__MODULE__{code: 7} = instruction, [left, right, result] ++ _, memory) do
-    left_value = get_parameter(instruction, :left, left, memory)
-    right_value = get_parameter(instruction, :right, right, memory)
+  def run(%__MODULE__{code: 7} = instruction, [left, right, result] ++ _, memory, offset) do
+    left_value = get_parameter(instruction, :left, left, memory, offset)
+    right_value = get_parameter(instruction, :right, right, memory, offset)
 
-    memory = set_parameter(instruction, :result, result, (if left_value < right_value, do: 1, else: 0), memory)
+    memory = set_parameter(instruction, :result, result, (if left_value < right_value, do: 1, else: 0), memory, offset)
 
-    {:continue, memory: memory, size: 4}
-  end
-
-  def run(%__MODULE__{code: 8} = instruction, [left, right, result] ++ _, memory) do
-    left_value = get_parameter(instruction, :left, left, memory)
-    right_value = get_parameter(instruction, :right, right, memory)
-
-    memory = set_parameter(instruction, :result, result, (if left_value == right_value, do: 1, else: 0), memory)
+    debug do
+      parameter :left
+      parameter :right
+      result left < right_value
+    end
 
     {:continue, memory: memory, size: 4}
   end
 
-  def run(%__MODULE__{} = instruction, program, memory) do
-    position = Enum.count(memory) - Enum.count(program) - 1
+  def run(%__MODULE__{code: 8} = instruction, [left, right, result] ++ _, memory, offset) do
+    left_value = get_parameter(instruction, :left, left, memory, offset)
+    right_value = get_parameter(instruction, :right, right, memory, offset)
+
+    memory = set_parameter(instruction, :result, result, (if left_value == right_value, do: 1, else: 0), memory, offset)
+
+    debug do
+      parameter :left
+      parameter :right
+      result left_value == right_value
+    end
+
+    {:continue, memory: memory, size: 4}
+  end
+
+  def run(%__MODULE__{code: 9} = instruction, [relative_base_offset] ++ _, memory, offset) do
+    relative_base_offset_value = get_parameter(instruction, :offset, relative_base_offset, memory, offset)
+
+    debug do
+      parameter :offset
+    end
+
+    {:continue, memory: memory, size: 2, relative_base_offset: relative_base_offset_value}
+  end
+
+  def run(%__MODULE__{} = instruction, program, memory, _offset) do
+    position = length(memory) - length(program) - 1
+
+    debug do
+      nil
+    end
 
     raise "invalid instruction at #{position}: #{inspect(instruction)}"
   end
@@ -119,15 +191,31 @@ defmodule Advent.Day2.Instruction do
   def get_parameter_mode(%__MODULE__{} = instruction, :output), do: get_parameter_mode(instruction, 0)
   def get_parameter_mode(%__MODULE__{} = instruction, :condition), do: get_parameter_mode(instruction, 0)
   def get_parameter_mode(%__MODULE__{} = instruction, :to), do: get_parameter_mode(instruction, 1)
+  def get_parameter_mode(%__MODULE__{} = instruction, :offset), do: get_parameter_mode(instruction, 0)
+  def get_parameter_mode(%__MODULE__{} = instruction, :at), do: get_parameter_mode(instruction, 0)
 
-  def get_parameter(%__MODULE__{} = instruction, index, parameter, memory) do
+  def get_parameter(%__MODULE__{} = instruction, index, parameter, memory, offset) do
     instruction
     |> get_parameter_mode(index)
     |> case do
       :positional ->
-        Enum.fetch!(memory, parameter)
+        position = parameter
+
+        if position < 0 do
+          raise "invalid memory address #{position}"
+        end
+
+        Enum.at(memory, position, 0)
       :immediate ->
         parameter
+      :relative ->
+        position = offset + parameter
+
+        if position < 0 do
+          raise "invalid memory address #{position}"
+        end
+
+        Enum.at(memory, position, 0)
     end
   end
 
@@ -148,15 +236,29 @@ defmodule Advent.Day2.Instruction do
     IO.puts("#{value}")
   end
 
-  def set_parameter(%__MODULE__{} = instruction, index, parameter, value, memory) do
-    instruction
-    |> get_parameter_mode(index)
-    |> case do
-      :positional ->
-        List.replace_at(memory, parameter, value)
-      :immediate ->
-        raise "cannot write to an immediate parameter: #{inspect(instruction)}"
+  def set_parameter(%__MODULE__{} = instruction, index, parameter, value, memory, offset) do
+    position = instruction
+      |> get_parameter_mode(index)
+      |> case do
+        :positional ->
+          parameter
+        :immediate ->
+          raise "cannot write to an immediate parameter: #{inspect(instruction)}"
+        :relative ->
+          offset + parameter
+      end
+
+    if position < 0 do
+      raise "invalid memory address #{position}"
     end
+
+    padding = if position >= length(memory) do
+      for _ <- length(memory)..position, do: 0
+    else
+      []
+    end
+
+    List.replace_at(memory ++ padding, position, value)
   end
 
   defp decode_instruction(integer) do
@@ -180,6 +282,7 @@ defmodule Advent.Day2.Instruction do
     decode_parameters(rest, parameters ++ [case parameter do
       0 -> :positional
       1 -> :immediate
+      2 -> :relative
       n -> raise "invalid addressing mode: #{n}"
     end])
   end
