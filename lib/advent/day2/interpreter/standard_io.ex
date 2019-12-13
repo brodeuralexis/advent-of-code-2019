@@ -16,7 +16,10 @@ defmodule Advent.Day2.Interpreter.StandardIO do
       :eof ->
         {:error, :eof}
       data ->
-        case Integer.parse(data) do
+        data
+        |> String.trim()
+        |> Integer.parse()
+        |> case do
           {integer, ""} ->
             {:ok, term, integer}
           data ->
